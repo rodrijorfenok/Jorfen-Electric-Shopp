@@ -1,0 +1,59 @@
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+@theme {
+  --font-sans: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  
+  --animate-marquee: marquee 20s linear infinite;
+  --animate-shimmer: shimmer 3s linear infinite;
+  --animate-pulse-slow: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  --animate-fire-rise: fire-rise 4s ease-in infinite;
+  
+  @keyframes marquee {
+    0% { transform: translateX(0%); }
+    100% { transform: translateX(-50%); }
+  }
+  @keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+  @keyframes fire-rise {
+    0% {
+      transform: translateY(20px) scale(0.6) rotate(0deg);
+      opacity: 0;
+    }
+    15% {
+      opacity: 1;
+    }
+    50% {
+      transform: translateY(-80px) scale(1.1) rotate(45deg);
+    }
+    80% {
+      opacity: 0.3;
+    }
+    100% {
+      transform: translateY(-180px) scale(0.3) rotate(90deg);
+      opacity: 0;
+    }
+  }
+}
+
+/* Custom scrollbar utility */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Shimmer style for text */
+.shine-text {
+  background: linear-gradient(90deg, #ffffff 15%, #ff5252 35%, #ffffff 55%, #ffffff 100%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shimmer 4s linear infinite;
+}
