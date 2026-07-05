@@ -11,6 +11,13 @@ import FireFooterBackground from './components/FireFooterBackground';
 import ShoppableVideoCarousel from './components/ShoppableVideoCarousel';
 import AdminPanel from './components/AdminPanel';
 import { Flame, ShieldCheck, ShieldAlert, AlertTriangle, Check, X, Star, Clock, ThumbsUp, Sparkles } from 'lucide-react';
+import { 
+  trackViewContent, 
+  trackAddToCart, 
+  trackInitiateCheckout, 
+  trackAddPaymentInfo, 
+  trackPurchase 
+} from './lib/analytics';
 
 // Import images
 import heroImg from './assets/images/extintor_baw_hero_1783034657755.jpg';
@@ -153,6 +160,88 @@ export default function App() {
   const [cityTouched, setCityTouched] = useState(false);
   const [postalCodeTouched, setPostalCodeTouched] = useState(false);
 
+  // Analytics and Abandoned Checkout management state
+  const [currentCartId, setCurrentCartId] = useState('');
+  const isMountedRef = useRef(false);
+
+  // 1. Page load tracking (ViewContent) and dynamic addition of AddToCart
+  useEffect(() => {
+    if (!isMountedRef.current) {
+      isMountedRef.current = true;
+      trackViewContent({ id: 'baw-ext1d-s1', name: 'Extintor Automático BAW', price: 89900 });
+      return;
+    }
+    trackAddToCart({
+      id: `baw-${selectedOption.id}`,
+      name: `Extintor BAW - Pack ${selectedOption.label}`,
+      price: selectedOption.pricePerUnit,
+      quantity: selectedOption.quantity * orderQuantity,
+    });
+  }, [selectedOption, orderQuantity]);
+
+  // 2. Track Initiate Checkout when drawer opens
+  useEffect(() => {
+    if (checkoutOpen) {
+      trackInitiateCheckout({
+        id: `baw-${selectedOption.id}`,
+        name: `Extintor BAW - Pack ${selectedOption.label}`,
+        price: selectedOption.pricePerUnit,
+        quantity: selectedOption.quantity * orderQuantity,
+      });
+
+      // Generate a Cart ID for abandoned checkout if it doesn't exist
+      if (!currentCartId) {
+        setCurrentCartId('CART-' + Math.floor(10000 + Math.random() * 90000));
+      }
+    }
+  }, [checkoutOpen]);
+
+  // 3. Track payment info change
+  useEffect(() => {
+    if (checkoutOpen) {
+      trackAddPaymentInfo(paymentMethod, selectedOption.totalPrice * orderQuantity);
+    }
+  }, [paymentMethod, checkoutOpen]);
+
+  // 4. Save abandoned cart on input changes
+  useEffect(() => {
+    if (!checkoutOpen || orderCompleted || !fullName.trim() || !phone.trim()) return;
+
+    const cartId = currentCartId || 'CART-' + Math.floor(10000 + Math.random() * 90000);
+    if (!currentCartId) {
+      setCurrentCartId(cartId);
+    }
+
+    const newCart = {
+      id: cartId,
+      fullName: fullName.trim(),
+      phone: phone.trim(),
+      address: address.trim(),
+      city: city.trim(),
+      postalCode: postalCode.trim(),
+      bundleLabel: selectedOption.label === '1 ud.' ? `${orderQuantity}x Unidad Individual` : selectedOption.label === '2 uds.' ? `${orderQuantity}x Combo 2 Unidades` : `${orderQuantity}x Combo 3 Unidades (Ahorro)`,
+      totalPrice: selectedOption.totalPrice * orderQuantity,
+      createdAt: new Date().toISOString(),
+    };
+
+    const existingStr = localStorage.getItem('baw_abandoned_checkouts') || '[]';
+    let existing = [];
+    try {
+      existing = JSON.parse(existingStr);
+    } catch (err) {
+      existing = [];
+    }
+
+    const idx = existing.findIndex((c: any) => c.id === cartId);
+    if (idx !== -1) {
+      existing[idx] = { ...existing[idx], ...newCart };
+    } else {
+      existing.unshift(newCart);
+    }
+
+    localStorage.setItem('baw_abandoned_checkouts', JSON.stringify(existing));
+  }, [checkoutOpen, fullName, phone, address, city, postalCode, selectedOption, orderQuantity, orderCompleted, currentCartId]);
+
   // Validation functions
   const getFullNameError = () => {
     if (!fullName) return 'El nombre y apellido son obligatorios.';
@@ -264,6 +353,33 @@ export default function App() {
       localStorage.setItem('baw_orders', JSON.stringify(updatedOrders));
       setOrderCompleted(true);
       setIsProcessingPayment(false);
+
+      // Track actual purchase event across Pixel, GA4, GTM, CAPI & Google Ads
+      trackPurchase({
+        id: orderId,
+        value: selectedOption.totalPrice * orderQuantity,
+        items: [{
+          id: `baw-${selectedOption.id}`,
+          name: `Extintor BAW - Pack ${selectedOption.label}`,
+          price: selectedOption.pricePerUnit,
+          quantity: selectedOption.quantity * orderQuantity,
+        }],
+        fullName,
+        phone,
+        paymentMethod,
+      });
+
+      // Clear the current checkout lead from abandoned carts list since they purchased
+      if (currentCartId) {
+        const existingStr = localStorage.getItem('baw_abandoned_checkouts') || '[]';
+        try {
+          const existing = JSON.parse(existingStr);
+          const filtered = existing.filter((c: any) => c.id !== currentCartId);
+          localStorage.setItem('baw_abandoned_checkouts', JSON.stringify(filtered));
+        } catch (e) {
+          // ignore
+        }
+      }
       
       if (paymentMethod === 'transfer') {
         setShowTransferReceiptPopup(true);
@@ -291,6 +407,7 @@ export default function App() {
     setCity('');
     setPostalCode('');
     setCurrentOrderId('');
+    setCurrentCartId('');
     setIsProcessingPayment(false);
     setShowTransferReceiptPopup(false);
     setFullNameTouched(false);
@@ -299,6 +416,7 @@ export default function App() {
     setCityTouched(false);
     setPostalCodeTouched(false);
   };
+
 
   return (
     <div className="min-h-screen bg-[#030303] flex justify-center text-neutral-200 font-sans selection:bg-red-900/30 selection:text-red-200">
@@ -1936,9 +2054,20 @@ export default function App() {
                     )}
 
                     {paymentMethod === 'card' && (
-                      <div className="bg-neutral-900 border border-neutral-850 rounded-xl p-3.5 text-[11px] flex flex-col gap-1.5 animate-fade-in text-neutral-400 leading-normal font-sans">
-                        <strong className="text-white text-[10px] uppercase font-extrabold block mb-0.5">🔒 Conexión Encriptada SSL (Mercado Pago)</strong>
-                        Pago seguro y protegido con tarjeta de crédito/débito. Procesado de forma segura mediante pasarela simulada para su demostración comercial.
+                      <div className="bg-neutral-900 border border-neutral-850 rounded-xl p-3.5 text-[11px] flex flex-col gap-2.5 animate-fade-in text-neutral-400 leading-normal font-sans">
+                        <div>
+                          <strong className="text-white text-[10px] uppercase font-extrabold block mb-0.5">🔒 Conexión Encriptada SSL (Mercado Pago)</strong>
+                          <p className="text-[10px] text-neutral-400">Pago seguro y protegido con tarjeta de crédito/débito. Procesado de forma segura mediante pasarela oficial de Mercado Pago.</p>
+                        </div>
+                        {/* Custom vector payment method logos */}
+                        <div className="flex gap-1.5 items-center justify-start border-t border-neutral-800/60 pt-2 select-none">
+                          <span className="text-[8px] uppercase font-bold tracking-wider text-neutral-500 mr-1">Aceptadas:</span>
+                          <div className="px-1.5 py-0.5 bg-neutral-950 border border-neutral-800 rounded text-[9px] font-bold text-white font-mono">VISA</div>
+                          <div className="px-1.5 py-0.5 bg-neutral-950 border border-neutral-800 rounded text-[9px] font-bold text-white font-mono">MC</div>
+                          <div className="px-1.5 py-0.5 bg-neutral-950 border border-neutral-800 rounded text-[9px] font-bold text-white font-mono">AMEX</div>
+                          <div className="px-1.5 py-0.5 bg-neutral-950 border border-neutral-800 rounded text-[9px] font-bold text-red-500 font-mono">MP</div>
+                          <div className="px-1.5 py-0.5 bg-neutral-950 border border-neutral-800 rounded text-[8px] font-bold text-neutral-400 font-mono">CABAL</div>
+                        </div>
                       </div>
                     )}
 

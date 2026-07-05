@@ -35,9 +35,12 @@ export default function ShoppableVideoCarousel() {
   
   const carouselRef = useRef<HTMLDivElement>(null);
   const videoRefs = useRef<(HTMLVideoElement | null)[]>([]);
+  const isProgrammaticScroll = useRef(false);
+  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Track scrolling to update the active index
   const handleScroll = () => {
+    if (isProgrammaticScroll.current) return;
     if (!carouselRef.current) return;
     const container = carouselRef.current;
     
@@ -65,7 +68,16 @@ export default function ShoppableVideoCarousel() {
 
   const scrollToIndex = (index: number) => {
     if (index < 0 || index >= VIDEOS_DATA.length) return;
+    
+    // Set programmatic flag to ignore scroll events while smooth scrolling
+    isProgrammaticScroll.current = true;
     setActiveIndex(index);
+    setIsMuted(true); // Keep newly selected video muted initially for safety
+    
+    if (scrollTimeoutRef.current) {
+      clearTimeout(scrollTimeoutRef.current);
+    }
+
     if (carouselRef.current) {
       const container = carouselRef.current;
       const child = container.children[index] as HTMLElement;
@@ -79,6 +91,10 @@ export default function ShoppableVideoCarousel() {
         });
       }
     }
+
+    scrollTimeoutRef.current = setTimeout(() => {
+      isProgrammaticScroll.current = false;
+    }, 600); // Smooth scroll transition buffer
   };
 
   // Play active video and pause inactive ones
@@ -97,8 +113,20 @@ export default function ShoppableVideoCarousel() {
     });
   }, [activeIndex, isMuted]);
 
+  // Clean up timers on unmount
+  useEffect(() => {
+    return () => {
+      if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+    };
+  }, []);
+
   // Toggle mute on click anywhere on the active card
   const toggleMute = () => {
+    const activeVideo = videoRefs.current[activeIndex];
+    if (activeVideo) {
+      activeVideo.muted = !isMuted;
+      activeVideo.play().catch(() => {});
+    }
     setIsMuted(!isMuted);
   };
 

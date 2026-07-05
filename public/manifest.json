@@ -1,0 +1,17 @@
+{
+  "short_name": "BAW Extintor",
+  "name": "BAW Extintor Automático para Tableros",
+  "description": "Extintor automático auto-activado por temperatura para riel DIN.",
+  "icons": [
+    {
+      "src": "/src/assets/images/extintor_baw_hero_1783034657755.jpg",
+      "type": "image/jpeg",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#000000",
+  "theme_color": "#DC2626",
+  "display": "standalone",
+  "orientation": "portrait"
+}
